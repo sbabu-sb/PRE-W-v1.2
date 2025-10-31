@@ -1,0 +1,75 @@
+import { ColumnMetadata, CaseStatus, SortKey } from '../types';
+import { INSURANCE_PAYERS } from '../constants';
+
+export const worklistColumnMetadata: ColumnMetadata[] = [
+  { id: 'id', name: 'Case ID', type: 'text', isFilterable: true, isVisible: true, position: 1, domain: 'ops', icon: 'Hash' },
+  { id: 'patient', name: 'Patient', type: 'text', isFilterable: true, isVisible: true, position: 2, domain: 'demographics', icon: 'User' },
+  { id: 'priority', name: 'Priority', type: 'numeric', isFilterable: true, isVisible: true, position: 3, domain: 'ops', icon: 'TrendingUp' },
+  {
+    id: 'status',
+    name: 'Status',
+    type: 'enum',
+    options: Object.values(CaseStatus),
+    isFilterable: true,
+    isVisible: true,
+    position: 4,
+    domain: 'ops',
+    icon: 'Activity',
+    groupable: true,
+    groupStrategy: 'enum',
+  },
+  { id: 'dos', name: 'Date of Service', type: 'date', isFilterable: true, isVisible: true, position: 5, domain: 'scheduling', icon: 'Calendar', groupable: true, groupStrategy: 'date-range' },
+  { id: 'timeToService', name: 'Time to Service', type: 'date', isFilterable: false, isVisible: true, position: 6, domain: 'scheduling', icon: 'Clock' },
+  {
+    id: 'primaryPayer',
+    name: 'Primary Payer',
+    type: 'enum',
+    options: INSURANCE_PAYERS,
+    isFilterable: true,
+    isVisible: true,
+    position: 7,
+    domain: 'eligibility',
+    icon: 'Shield',
+    groupable: true,
+    groupStrategy: 'enum',
+  },
+  { id: 'lastWorkedBy', name: 'Last Worked By', type: 'text', isFilterable: true, isVisible: true, position: 8, domain: 'ops', icon: 'UserCheck' },
+  { id: 'assignedTo', name: 'Assigned To', type: 'text', isFilterable: true, isVisible: true, position: 9, domain: 'ops', icon: 'UserPlus', groupable: true, groupStrategy: 'enum' },
+  {
+    id: 'estimateStatus',
+    name: 'Estimate Status',
+    type: 'enum',
+    options: ['Not Started', 'In Progress', 'Ready for Review', 'Sent to Patient'],
+    isFilterable: true,
+    isVisible: false,
+    position: 10,
+    domain: 'estimate',
+    icon: 'FileText'
+  },
+  {
+    id: 'preServiceClearance',
+    name: 'Pre-Service Clearance',
+    type: 'enum',
+    options: ['Cleared', 'Needs Review', 'Blocked'],
+    isFilterable: true,
+    isVisible: false,
+    position: 11,
+    domain: 'auth',
+    icon: 'ShieldCheck',
+    groupable: true,
+    groupStrategy: 'enum'
+  },
+   {
+    id: 'authStatus',
+    name: 'Auth Status',
+    type: 'enum',
+    options: ['Required', 'Not Required', 'Submitted', 'Approved', 'Denied'],
+    isFilterable: true,
+    isVisible: false, // Not a direct column, but available for grouping/filtering
+    position: 12,
+    domain: 'auth',
+    icon: 'FileBadge',
+    groupable: true,
+    groupStrategy: 'enum',
+  }
+];
