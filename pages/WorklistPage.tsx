@@ -1133,12 +1133,21 @@ const WorklistPage: React.FC = () => {
                 </EstimateProvider>
             ) : (
                 <>
+                    <header className="flex-shrink-0 bg-white border-b h-16 flex items-center justify-between px-6 z-20">
+                        <h1 className="text-lg font-bold text-gray-800 tracking-tight">PRE-SERVICE WORKSPACE</h1>
+                        <div className="flex items-center space-x-4">
+                            <ForYouButton count={forYouCases.length} onClick={handleOpenForYou} />
+                            <ByYouButton count={byYouCases.length} onClick={handleOpenByYou} />
+                            <CaseFeedButton badgeCount={unreadCollabCount} onClick={() => setIsCaseFeedOpen(true)} />
+                            <HistoryFeedButton badgeCount={0} onClick={handleOpenGlobalHistory} />
+                            <NotificationsButton badgeCount={unreadCount} onClick={() => setIsNotificationsOpen(true)} />
+                            <HelpCircle className="h-6 w-6 text-gray-500 hover:text-gray-700 cursor-pointer" />
+                            <Settings className="h-6 w-6 text-gray-500 hover:text-gray-700 cursor-pointer" />
+                            <UserCircle className="h-7 w-7 text-gray-500 hover:text-gray-700 cursor-pointer" />
+                        </div>
+                    </header>
                     <main className="flex-1 flex flex-col p-6 overflow-auto">
                         <WorklistHeader
-                            onOpenCaseFeed={() => setIsCaseFeedOpen(true)}
-                            unreadCollabCount={unreadCollabCount}
-                            unreadNotifCount={unreadCount}
-                            onOpenNotifications={() => setIsNotificationsOpen(true)}
                             keywordFilter={keywordFilter}
                             setKeywordFilter={setKeywordFilter}
                             searchInputRef={searchInputRef}
@@ -1167,11 +1176,6 @@ const WorklistPage: React.FC = () => {
                             smartSavePolicy={smartSavePolicy}
                             smartSaveScope={smartSaveScope}
                             hasUnsavedChanges={hasUnsavedChanges}
-                            onOpenGlobalHistory={handleOpenGlobalHistory}
-                            forYouCount={forYouCases.length}
-                            onOpenForYou={handleOpenForYou}
-                            byYouCount={byYouCases.length}
-                            onOpenByYou={handleOpenByYou}
                         />
                         <div className="mt-4 flex-1">
                             <WorklistTable
@@ -1226,7 +1230,7 @@ const WorklistPage: React.FC = () => {
                         onExport={handleBatchExport}
                         onComplete={handleBatchComplete}
                     />
-                    <SidePanel isOpen={isPanelOpen} onClose={handlePanelClose} panelWidth={panelWidth} setPanelWidth={setPanelWidth} isPanelFullscreen={isPanelFullscreen} onToggleFullscreen={onToggleFullscreen} lastNonFullscreenWidth={0} >
+                    <SidePanel isOpen={isPanelOpen} onClose={handlePanelClose} panelWidth={panelWidth} setPanelWidth={setPanelWidth} isPanelFullscreen={isPanelFullscreen} onToggleFullscreen={onToggleFullscreen} lastNonFullscreenWidth={lastNonFullscreenWidth} >
                         {selectedPatient && (
                           <EstimateProvider>
                               <EstimateCalculatorApp 

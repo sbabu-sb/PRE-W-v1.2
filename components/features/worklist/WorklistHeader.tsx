@@ -1,16 +1,11 @@
 import React from 'react';
-import { Search, Plus, Activity, X, BrainCircuit, List, Columns, Library, Settings, HelpCircle, UserCircle } from 'lucide-react';
+import { Search, Plus, Activity, X, BrainCircuit, List, Columns, Library } from 'lucide-react';
 import ViewsDropdown from './ViewsDropdown';
 import { WorklistPatient, WorklistView, FilterObject, SortKey, SmartSaveMode, SmartSaveScope } from '../../../types';
 import { worklistColumnMetadata } from '../../../data/columnMetadata';
 import FilterButton from './FilterButton';
 import GroupByButton from './GroupByButton';
 import SmartSaveButton from './smart-save/SmartSaveButton';
-import HistoryFeedButton from './HistoryFeedButton';
-import CaseFeedButton from './CaseFeedButton';
-import NotificationsButton from '../../features/notifications/NotificationsButton';
-import ForYouButton from './ForYouButton';
-import ByYouButton from './ByYouButton';
 
 
 interface FilterPillsDisplayProps {
@@ -85,15 +80,6 @@ interface WorklistHeaderProps {
     smartSavePolicy: SmartSaveMode;
     smartSaveScope: SmartSaveScope;
     hasUnsavedChanges: boolean;
-    onOpenGlobalHistory: () => void;
-    unreadCollabCount: number;
-    onOpenCaseFeed: () => void;
-    unreadNotifCount: number;
-    onOpenNotifications: () => void;
-    forYouCount: number;
-    onOpenForYou: () => void;
-    byYouCount: number;
-    onOpenByYou: () => void;
 }
 
 const WorklistHeader: React.FC<WorklistHeaderProps> = ({
@@ -102,26 +88,11 @@ const WorklistHeader: React.FC<WorklistHeaderProps> = ({
     filters, onRemoveFilter, isPrioritySortMode, onTogglePrioritySort,
     onCreate, isFieldsPanelOpen, onToggleFieldsPanel, visibleColumnCount, onToggleFilterPanel,
     groupingPath, onOpenGroupByPanel, onClearGrouping, onOpenSmartSavePanel,
-    smartSavePolicy, smartSaveScope, hasUnsavedChanges, onOpenGlobalHistory,
-    unreadCollabCount, onOpenCaseFeed, unreadNotifCount, onOpenNotifications,
-    forYouCount, onOpenForYou, byYouCount, onOpenByYou,
+    smartSavePolicy, smartSaveScope, hasUnsavedChanges
 }) => {
 
     return (
         <div className="flex-shrink-0 bg-white p-6 pb-4 border-b border-gray-200/80 space-y-4">
-             <div className="flex items-center justify-between">
-                <h1 className="text-xl font-bold text-gray-800 tracking-tight">PRE-SERVICE WORKSPACE</h1>
-                <div className="flex items-center space-x-4">
-                    <ForYouButton count={forYouCount} onClick={onOpenForYou} />
-                    <ByYouButton count={byYouCount} onClick={onOpenByYou} />
-                    <CaseFeedButton badgeCount={unreadCollabCount} onClick={onOpenCaseFeed} />
-                    <HistoryFeedButton badgeCount={0} onClick={onOpenGlobalHistory} />
-                    <NotificationsButton badgeCount={unreadNotifCount} onClick={onOpenNotifications} />
-                    <HelpCircle className="h-6 w-6 text-gray-500 hover:text-gray-700 cursor-pointer" />
-                    <Settings className="h-6 w-6 text-gray-500 hover:text-gray-700 cursor-pointer" />
-                    <UserCircle className="h-7 w-7 text-gray-500 hover:text-gray-700 cursor-pointer" />
-                </div>
-            </div>
             <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                     <h2 className="text-2xl font-bold text-gray-800">Cases</h2>

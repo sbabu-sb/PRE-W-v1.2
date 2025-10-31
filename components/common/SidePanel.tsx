@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import { X, Maximize2, Minimize2 } from 'lucide-react';
+import { useDynamicPanelHeight } from '../../hooks/useDynamicPanelHeight';
 
 interface SidePanelProps {
   isOpen: boolean;
@@ -22,6 +23,8 @@ const SidePanel: React.FC<SidePanelProps> = ({
   onToggleFullscreen,
 }) => {
   const isResizing = useRef(false);
+  const { style: dynamicStyle, isMobile } = useDynamicPanelHeight(isPanelFullscreen, panelWidth);
+  const effectiveFullscreen = isPanelFullscreen || isMobile;
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -43,7 +46,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
   }, []);
 
   useEffect(() => {
-    if (isOpen && !isPanelFullscreen) {
+    if (isOpen && !effectiveFullscreen) {
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
     } else {
@@ -54,7 +57,7 @@ const SidePanel: React.FC<SidePanelProps> = ({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isOpen, isPanelFullscreen, handleMouseMove, handleMouseUp]);
+  }, [isOpen, effectiveFullscreen, handleMouseMove, handleMouseUp]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -76,21 +79,21 @@ const SidePanel: React.FC<SidePanelProps> = ({
       }
   };
 
+  const finalStyle: React.CSSProperties = {
+    ...dynamicStyle,
+    transition: 'width 0.3s ease-in-out, transform 0.3s ease-in-out, top 0.3s ease-in-out, height 0.3s ease-in-out',
+  };
+
   return (
     <>
       <div
-        className={`fixed right-0 bg-white shadow-2xl z-[1100] flex flex-col ${isOpen ? 'translate-x-0' : 'translate-x-full'} ${isPanelFullscreen ? '' : 'pt-16'}`}
-        style={{ 
-            width: isPanelFullscreen ? '100vw' : `${panelWidth}px`,
-            top: 0,
-            height: '100vh',
-            transition: 'width 0.3s ease-in-out, transform 0.3s ease-in-out'
-        }}
+        className={`fixed right-0 bg-white shadow-2xl z-[1100] flex flex-col ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+        style={finalStyle}
         role="dialog"
-        aria-modal="false"
+        aria-modal="true"
         aria-labelledby="side-panel-title"
       >
-        {!isPanelFullscreen && (
+        {!effectiveFullscreen && (
             <div
               onMouseDown={handleMouseDown}
               className="absolute top-0 left-0 h-full w-2 cursor-col-resize z-50 bg-gray-200/50 hover:bg-blue-500 opacity-0 hover:opacity-100 transition-opacity"
@@ -102,14 +105,16 @@ const SidePanel: React.FC<SidePanelProps> = ({
                 Patient Estimate Details
             </div>
             <div className="flex items-center space-x-2 ml-auto">
-                 <button
-                    onClick={onToggleFullscreen}
-                    className="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-800"
-                    aria-label={isPanelFullscreen ? 'Collapse panel' : 'Expand panel'}
-                    title={isPanelFullscreen ? 'Collapse panel' : 'Expand panel'}
-                >
-                    {isPanelFullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
-                </button>
+                 {!isMobile && (
+                    <button
+                        onClick={onToggleFullscreen}
+                        className="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                        aria-label={isPanelFullscreen ? 'Collapse panel' : 'Expand panel'}
+                        title={isPanelFullscreen ? 'Collapse panel' : 'Expand panel'}
+                    >
+                        {isPanelFullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
+                    </button>
+                 )}
                 <button
                     onClick={onClose}
                     className="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-800"
