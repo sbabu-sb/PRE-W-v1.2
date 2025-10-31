@@ -351,7 +351,7 @@ export interface WorklistPatient {
     estimatedResponsibility: number | null;
     lastUpdated: string;
     lastWorkedBy: { name: string; avatarUrl: string };
-    assignedTo: { name: string; avatarUrl: string };
+    assignedTo: { name: string; avatarUrl: string; role?: string; };
     priorityDetails?: PriorityDetails;
     isExplorationItem?: boolean;
     status: CaseStatus;

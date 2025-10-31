@@ -19,10 +19,10 @@ const practices = [
     { name: 'Downtown Health', taxId: '112233445' }
 ];
 const teamMembers = [
-    { name: 'Maria Garcia', avatarUrl: 'https://i.pravatar.cc/150?u=mariagarcia' },
-    { name: 'David Chen', avatarUrl: 'https://i.pravatar.cc/150?u=davidchen' },
-    { name: 'J. Smith', avatarUrl: 'https://i.pravatar.cc/150?u=jsmith' },
-    { name: 'Unassigned', avatarUrl: '' },
+    { name: 'Maria Garcia', avatarUrl: 'https://i.pravatar.cc/150?u=mariagarcia', role: 'Financial Counselor' },
+    { name: 'David Chen', avatarUrl: 'https://i.pravatar.cc/150?u=davidchen', role: 'Auth Specialist' },
+    { name: 'J. Smith', avatarUrl: 'https://i.pravatar.cc/150?u=jsmith', role: 'Supervisor' },
+    { name: 'Unassigned', avatarUrl: '', role: 'Unassigned' },
 ];
 const proceduresList: Partial<Procedure>[] = [
     { cptCode: '27447', billedAmount: '32000', dxCode: 'M17.11', category: 'Surgery', acuity: 'elective' },
@@ -33,6 +33,157 @@ const proceduresList: Partial<Procedure>[] = [
     { cptCode: '99285', billedAmount: '1200', dxCode: 'R07.9', category: 'Emergency', acuity: 'urgent' },
     { cptCode: '93010', billedAmount: '150', dxCode: 'I20.9', category: 'Cardiology', acuity: 'standard' }
 ];
+
+// --- GCPE 2.0 IMPLEMENTATION (Phase 13) ---
+
+// Internal types for the engine
+interface Driver {
+  label: string;
+  weight: number; // Raw score contribution
+  factor: 'financialImpact' | 'clinicalTimePressure' | 'complianceRisk' | 'workflowDisruption' | 'roleAffinity' | 'recurrencePenalty';
+}
+
+interface CohortStats {
+  mean: number;
+  stdDev: number;
+  p95: number;
+  p99: number;
+}
+
+// Mock Cohort Stats Provider
+const MOCK_COHORT_STATS: Record<string, CohortStats> = {
+    'default': { mean: 65, stdDev: 15, p95: 85, p99: 95 },
+    'Auth Specialist': { mean: 70, stdDev: 12, p95: 90, p99: 97 },
+    'Financial Counselor': { mean: 60, stdDev: 18, p95: 88, p99: 96 },
+    'Supervisor': { mean: 75, stdDev: 10, p95: 92, p99: 98 },
+};
+
+const getCohortStats = (role: string): CohortStats => {
+    return MOCK_COHORT_STATS[role] || MOCK_COHORT_STATS['default'];
+};
+
+// Main GCPE 2.0 Scoring Engine
+const generatePriorityScoreGCPE = (
+    patient: { id: string, procedures: Procedure[], metaData: MetaData, payers: Payer[], lastUpdated: string },
+    financialClearance: WorklistPatient['financialClearance'],
+    authStatus: WorklistPatient['authStatus'],
+    userRole: string
+): PriorityDetails => {
+    
+    const drivers: Driver[] = [];
+    const clamp = (val: number, min: number, max: number) => Math.max(min, Math.min(max, val));
+
+    // 1. Raw Factor Calculation
+    const primaryProcedure = patient.procedures[0];
+    const caseValue = Number(primaryProcedure?.billedAmount) || 0;
+    const denialProbability = Math.random() * 0.4 + 0.05; // Mocked
+    const financialImpact = clamp((caseValue * denialProbability) / 100, 0, 100);
+    if (caseValue > 1000) {
+        drivers.push({ factor: 'financialImpact', weight: financialImpact, label: `High Value Case ($${caseValue.toLocaleString()})` });
+    }
+
+    const serviceDate = new Date(patient.metaData.service.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const daysUntilService = (serviceDate.getTime() - today.getTime()) / (1000 * 3600 * 24);
+    let clinicalTimePressure = 0;
+    if (daysUntilService < 0) clinicalTimePressure = 100;
+    else if (daysUntilService <= 1) clinicalTimePressure = 90;
+    else if (daysUntilService <= 3) clinicalTimePressure = 75;
+    else if (daysUntilService <= 7) clinicalTimePressure = 50;
+    else clinicalTimePressure = 10;
+    if (clinicalTimePressure > 40) {
+        drivers.push({ factor: 'clinicalTimePressure', weight: clinicalTimePressure, label: `DOS in ${Math.ceil(daysUntilService)} days` });
+    }
+
+    let complianceRisk = 0;
+    if (authStatus === 'Required' || authStatus === 'Denied') complianceRisk = 90;
+    else if (patient.payers[0]?.networkStatus === 'out-of-network') complianceRisk = 75;
+    if (complianceRisk > 70) {
+        drivers.push({ factor: 'complianceRisk', weight: complianceRisk, label: `Auth Status: ${authStatus || 'N/A'}` });
+    }
+    
+    // Mocked factors
+    const workflowDisruption = Math.random() > 0.8 ? 80 : 20;
+    if (workflowDisruption > 50) drivers.push({ factor: 'workflowDisruption', weight: workflowDisruption, label: `Blocks 3 downstream steps` });
+    
+    let roleAffinity = 1.0;
+    if (userRole === 'Auth Specialist' && (authStatus === 'Required' || authStatus === 'Denied')) roleAffinity = 1.2;
+    if (userRole === 'Financial Counselor' && caseValue > 5000) roleAffinity = 1.2;
+    if (roleAffinity > 1.0) drivers.push({ factor: 'roleAffinity', weight: (roleAffinity - 1) * 100, label: `Perfect fit for ${userRole}` });
+
+    // 2. Time Decay/Boost (Simplified) & Recurrence Penalty
+    let timeAdjustment = 1.0;
+    let recurrencePenalty = 0;
+    const hoursSinceUpdate = (new Date().getTime() - new Date(patient.lastUpdated).getTime()) / (1000 * 60 * 60);
+    if (hoursSinceUpdate > 48) {
+        timeAdjustment = 0.8; // Decay stale items
+        recurrencePenalty = -20;
+        drivers.push({ factor: 'recurrencePenalty', weight: recurrencePenalty, label: `Stale item (>${Math.round(hoursSinceUpdate)}h)` });
+    }
+    if (daysUntilService < 1) timeAdjustment = 1.25; // Boost urgent items
+
+    // Apply weights
+    const factorWeights = { financialImpact: 0.28, clinicalTimePressure: 0.22, complianceRisk: 0.18, workflowDisruption: 0.17, roleAffinity: 0.10, recurrencePenalty: 0.05 };
+    let rawPriority =
+      (financialImpact * factorWeights.financialImpact) +
+      (clinicalTimePressure * factorWeights.clinicalTimePressure) +
+      (complianceRisk * factorWeights.complianceRisk) +
+      (workflowDisruption * factorWeights.workflowDisruption) +
+      (drivers.find(d => d.factor === 'roleAffinity')?.weight || 0) * factorWeights.roleAffinity +
+      (recurrencePenalty) * factorWeights.recurrencePenalty;
+    
+    rawPriority = rawPriority * timeAdjustment * roleAffinity;
+
+    // 3. Cohort Normalization
+    const cohortStats = getCohortStats(userRole);
+    const z = (rawPriority - cohortStats.mean) / (cohortStats.stdDev || 1);
+    const cohortScore = clamp(50 + (z * 15), 0, 100);
+    const cohortPercentile = Math.round(clamp(cohortScore / 100 * 80 + 20, 0, 99)); // Mock percentile
+
+    // 4. Dynamic Range Enforcement
+    let finalScore;
+    if (cohortScore >= cohortStats.p99) {
+        finalScore = 95 + ((cohortScore - cohortStats.p99) / (100 - cohortStats.p99)) * 4.9;
+    } else if (cohortScore >= cohortStats.p95) {
+        finalScore = 90 + ((cohortScore - cohortStats.p95) / (cohortStats.p99 - cohortStats.p95)) * 4.9;
+    } else {
+        finalScore = cohortScore;
+    }
+    finalScore = clamp(finalScore, 15, 99.9);
+
+    // 5. Action-Linked Drivers and Best Action
+    const sortedDrivers = drivers.sort((a, b) => b.weight - a.weight);
+    const topDriver = sortedDrivers[0];
+    
+    let nextBestAction: { code: string; display_text: string } = { code: 'REVIEW', display_text: 'Review Case Details' };
+    if (topDriver) {
+        switch(topDriver.factor) {
+            case 'complianceRisk': nextBestAction = { code: 'RESOLVE_AUTH', display_text: 'Resolve Auth Risk' }; break;
+            case 'clinicalTimePressure': nextBestAction = { code: 'PRIORITIZE_DOS', display_text: 'Prioritize for DOS' }; break;
+            case 'financialImpact': nextBestAction = { code: 'SECURE_FINANCES', display_text: 'Secure High-Value Case' }; break;
+            case 'workflowDisruption': nextBestAction = { code: 'UNBLOCK_WORKFLOW', display_text: 'Unblock Downstream Steps' }; break;
+            default: break;
+        }
+    }
+    
+    // Map internal drivers to UI-compatible TopFactor[]
+    const topFactors: TopFactor[] = drivers.map(d => ({
+        feature: d.factor,
+        value: d.label,
+        impact: d.weight
+    }));
+
+    return {
+        score: parseFloat(finalScore.toFixed(2)),
+        topFactors: topFactors.sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact)),
+        nextBestAction: nextBestAction,
+        modelConfidence: parseFloat((0.85 + Math.random() * 0.14).toFixed(2)),
+        percentileRank: cohortPercentile,
+    };
+};
+
+// --- END GCPE 2.0 IMPLEMENTATION ---
 
 const getRandomItem = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 const getRandomDate = (start: Date, end: Date): string => new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime())).toISOString().split('T')[0];
@@ -86,78 +237,6 @@ const createPayer = (rank: 'Primary' | 'Secondary' | 'Tertiary', procedures: Pro
     ...overrides,
 });
 
-const generatePriorityDetails = (
-    patient: { procedures: Procedure[], metaData: MetaData, payers: Payer[], estimateStatus: WorklistPatient['estimateStatus'] },
-    financialClearance: WorklistPatient['financialClearance'],
-    authStatus: WorklistPatient['authStatus']
-): PriorityDetails => {
-    let baseScore = 50;
-    const factors: TopFactor[] = [];
-
-    const primaryProcedure = patient.procedures[0];
-    if (primaryProcedure) {
-        const billed = Number(primaryProcedure.billedAmount);
-        if (billed > 10000) factors.push({ feature: 'Procedure Cost', value: `$${billed.toLocaleString()}`, impact: 25.5 });
-        else if (billed > 1000) factors.push({ feature: 'Procedure Cost', value: `$${billed.toLocaleString()}`, impact: 10.2 });
-    }
-
-    if (patient.procedures.length > 1) {
-        factors.push({ feature: 'Multiple Procedures', value: patient.procedures.length, impact: 8.0 });
-    }
-    
-    const serviceDate = new Date(patient.metaData.service.date);
-    const today = new Date();
-    const daysUntilService = (serviceDate.getTime() - today.getTime()) / (1000 * 3600 * 24);
-
-    if (daysUntilService < 3) {
-        factors.push({ feature: 'Time to Service', value: `${Math.round(daysUntilService)} days`, impact: 22.1 });
-    } else if (daysUntilService < 7) {
-        factors.push({ feature: 'Time to Service', value: `${Math.round(daysUntilService)} days`, impact: 15.3 });
-    }
-
-    if (patient.payers[0]?.networkStatus === 'out-of-network') {
-        factors.push({ feature: 'Network Status', value: 'Out-of-Network', impact: 12.5 });
-    }
-
-    if (financialClearance === 'Blocked') {
-        factors.push({ feature: 'Clearance Status', value: 'Blocked', impact: 18.0 });
-    } else if (financialClearance === 'Needs Review') {
-        factors.push({ feature: 'Clearance Status', value: 'Needs Review', impact: 5.0 });
-    }
-    
-    if (authStatus === 'Required' || authStatus === 'Denied') {
-        factors.push({ feature: 'Auth Status', value: authStatus, impact: 20.0 });
-    }
-
-    let nextBestAction = { code: 'REVIEW', display_text: 'Review Case Details' };
-
-    if (financialClearance === 'Blocked') {
-        if (authStatus === 'Required') nextBestAction = { code: 'SUBMIT_AUTH', display_text: 'Submit Prior Authorization' };
-        else if (authStatus === 'Denied') nextBestAction = { code: 'APPEAL_DENIAL', display_text: 'Appeal Authorization Denial' };
-        else nextBestAction = { code: 'RUN_ELIGIBILITY', display_text: 'Run full eligibility check' };
-    } else if (financialClearance === 'Needs Review') {
-        nextBestAction = { code: 'REVIEW_CODING', display_text: 'Review Coding and Modifiers' };
-    } else if (financialClearance === 'Cleared') {
-        if (patient.estimateStatus === 'Not Started') nextBestAction = { code: 'GENERATE_ESTIMATE', display_text: 'Generate Patient Estimate' };
-        else nextBestAction = { code: 'SEND_ESTIMATE', display_text: 'Send Estimate to Patient' };
-    }
-
-    if (daysUntilService < 3 && !['SEND_ESTIMATE', 'REVIEW'].includes(nextBestAction.code)) {
-        baseScore += 15;
-        nextBestAction.display_text = `URGENT: ${nextBestAction.display_text}`;
-    }
-
-    const finalScore = baseScore + factors.reduce((sum, f) => sum + f.impact, 0);
-
-    return {
-        score: parseFloat(Math.min(99.9, finalScore).toFixed(2)),
-        topFactors: factors.sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact)),
-        nextBestAction: nextBestAction,
-        modelConfidence: parseFloat((0.85 + Math.random() * 0.14).toFixed(2)),
-        percentileRank: Math.floor(80 + Math.random() * 20),
-    };
-};
-
 export const createNewWorklistPatient = (): WorklistPatient => {
     const randomProcedureInfo = getRandomItem(proceduresList);
     const procedures = [createDefaultProcedure(randomProcedureInfo)];
@@ -187,27 +266,26 @@ export const createNewWorklistPatient = (): WorklistPatient => {
     const financialClearance = getRandomItem(['Cleared', 'Needs Review', 'Blocked']);
     const authStatusOptions: WorklistPatient['authStatus'][] = ['Required', 'Not Required', 'Submitted', 'Approved', 'Denied'];
     const authStatus = getRandomItem(authStatusOptions);
-    const estimateStatus = getRandomItem(['Not Started', 'In Progress', 'Ready for Review']);
+    
+    const lastUpdated = new Date();
+    lastUpdated.setHours(lastUpdated.getHours() - Math.floor(Math.random() * 72));
 
     const worklistPatientBase = {
-        metaData: meta,
-        payers,
-        procedures,
-        estimateStatus
-    };
-    
-    const priorityDetails = generatePriorityDetails(worklistPatientBase, financialClearance, authStatus);
-
-    return {
         id: generateLuhnCaseId(),
         metaData: meta,
         payers,
         procedures,
+        lastUpdated: lastUpdated.toISOString(),
+    };
+    
+    const priorityDetails = generatePriorityScoreGCPE(worklistPatientBase, financialClearance, authStatus, assignedTo.role || 'Generalist');
+
+    return {
+        ...worklistPatientBase,
         financialClearance,
         authStatus,
-        estimateStatus,
+        estimateStatus: getRandomItem(['Not Started', 'In Progress', 'Ready for Review']),
         estimatedResponsibility: status === CaseStatus.COMPLETED ? 0 : Math.random() > 0.5 ? parseFloat((Math.random() * 2000).toFixed(2)) : null,
-        lastUpdated: new Date().toISOString(),
         lastWorkedBy: getRandomItem(teamMembers.filter(t => t.name !== 'Unassigned')),
         assignedTo: assignedTo,
         priorityDetails: priorityDetails,
